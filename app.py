@@ -15,7 +15,7 @@ st.set_page_config(layout="wide", page_title="Анализ успеваемос�
 # @st.cache_data decorator ensures the data is loaded only once, improving performance.
 # =================================================================================
 @st.cache_data
-def load_data(file_path="your_data.xlsx"):
+def load_data(file_path="df.xlsx"):
     """
     Loads data from the specified file path.
     Handles potential FileNotFoundError if the file is missing.
