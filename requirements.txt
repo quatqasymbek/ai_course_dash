@@ -6,3 +6,4 @@ pandas-gbq==0.29.2
 pandas-stubs==2.2.2.240909
 plotly==5.24.1
 sklearn-pandas==2.2.0
+streamlit
