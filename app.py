@@ -44,67 +44,95 @@ grouping_columns = ['Область', 'Тип школы', 'Категория',
 # 3. SIDEBAR WITH USER CONTROLS
 # The sidebar is used for all user inputs and filters.
 # =================================================================================
+st.sidebar.header("Параметры стратификации")
+
+# --- REFINED: Multi-select for grouping columns ---
+group_cols = st.sidebar.multiselect(
+    "Шаг 1: Выберите одну или несколько категорий для группировки",
+    options=grouping_columns,
+    default=['Область', 'Пол'] # Set a useful default
+)
+
+# --- REFINED: Dynamic filters based on selected grouping columns ---
 st.sidebar.header("Параметры фильтрации")
-
-# Step 1: Dropdown to select the main category for grouping
-group_col = st.sidebar.selectbox(
-    "Шаг 1: Выберите категорию для группировки",
-    options=grouping_columns
-)
-
-# Step 2: Multi-select box to choose the specific items to compare
-# The options in this box are dynamically updated based on the selection in Step 1.
-options = sorted(df[group_col].unique())
-filter_values = st.sidebar.multiselect(
-    "Шаг 2: Выберите элементы для сравнения",
-    options=options,
-    default=options[:3]  # Set a default selection of the first three items
-)
+filters = {}
+if not group_cols:
+    st.sidebar.info("Выберите категорию для группировки, чтобы отобразить фильтры.")
+else:
+    for col in group_cols:
+        options = sorted(df[col].unique())
+        # Use a descriptive label for each filter
+        filters[col] = st.sidebar.multiselect(
+            f"Фильтр по '{col}'",
+            options=options,
+            default=options # Default to all options selected
+        )
 
 
 # =================================================================================
 # 4. MAIN PANEL WITH VISUALIZATIONS
 # This section displays the title and the charts.
 # =================================================================================
-st.title("📊 Панель для анализа успеваемости по курсу")
+st.title("Панель для анализа успеваемости по курсу")
 
-# Check if the user has selected any values in the multiselect box
-if not filter_values:
-    st.warning("Пожалуйста, выберите хотя бы один элемент для сравнения в боковой панели.")
-    st.stop() # Stop the script execution if nothing is selected
+# Check if the user has selected any grouping categories
+if not group_cols:
+    st.info("Пожалуйста, выберите хотя бы одну категорию для группировки в боковой панели.")
+    st.stop()
 
-# Filter the DataFrame based on the user's selections
-filtered_df = df[df[group_col].isin(filter_values)]
-avg_scores = filtered_df.groupby(group_col)['Итоговый балл'].mean().round(2).reset_index().sort_values('Итоговый балл')
+# --- REFINED: Apply all active filters ---
+filtered_df = df.copy()
+for col, selected_values in filters.items():
+    if selected_values: # Only filter if a value is selected
+        filtered_df = filtered_df[filtered_df[col].isin(selected_values)]
+
+if filtered_df.empty:
+    st.warning("Нет данных, соответствующих выбранным фильтрам. Попробуйте изменить параметры.")
+    st.stop()
+
+# --- REFINED: Group by a list of columns ---
+avg_scores = filtered_df.groupby(group_cols)['Итоговый балл'].mean().round(2).reset_index()
+
+# --- REFINED: Create a combined label for the bar chart y-axis ---
+if len(group_cols) > 1:
+    avg_scores['display_label'] = avg_scores[group_cols].apply(lambda row: ' - '.join(row.values.astype(str)), axis=1)
+    y_axis_label = 'display_label'
+else:
+    y_axis_label = group_cols[0]
+
+avg_scores = avg_scores.sort_values('Итоговый балл')
 
 # --- Horizontal Bar Chart ---
-st.subheader(f"Средний 'Итоговый балл' по '{group_col}'")
-
-# Dynamically calculate the chart height based on the number of bars
+st.subheader(f"Средний 'Итоговый балл' по выбранным категориям")
 num_bars = len(avg_scores)
-bar_chart_height = max(300, num_bars * 45)
+bar_chart_height = max(400, num_bars * 35)
 
 bar_fig = px.bar(
     avg_scores,
     x='Итоговый балл',
-    y=group_col,
+    y=y_axis_label,
     orientation='h',
     text='Итоговый балл',
     color='Итоговый балл',
     color_continuous_scale=px.colors.sequential.Tealgrn,
     height=bar_chart_height
 )
-bar_fig.update_layout(xaxis_title="Средний 'Итоговый балл'", yaxis_title=None)
+bar_fig.update_layout(xaxis_title="Средний 'Итоговый балл'", yaxis_title="Группы")
 st.plotly_chart(bar_fig, use_container_width=True)
 
 
 # --- Box Plot ---
-st.subheader(f"Распределение баллов по '{group_col}'")
+st.subheader(f"Распределение баллов по выбранным категориям")
+
+# --- REFINED: Use color for the second dimension in the box plot ---
+box_color = group_cols[1] if len(group_cols) > 1 else None
+
 box_fig = px.box(
     filtered_df,
-    x=group_col,
+    x=group_cols[0],
     y='Итоговый балл',
-    color=group_col
+    color=box_color,
+    title=f"Распределение по '{group_cols[0]}' с разбивкой по '{box_color}'" if box_color else f"Распределение по '{group_cols[0]}'"
 )
-box_fig.update_layout(yaxis_title="'Итоговый балл'", xaxis_title=None)
+box_fig.update_layout(yaxis_title="'Итоговый балл'", xaxis_title=group_cols[0])
 st.plotly_chart(box_fig, use_container_width=True)
