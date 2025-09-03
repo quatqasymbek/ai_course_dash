@@ -112,40 +112,48 @@ if page == "Основной анализ":
 # =============================================================================
 elif page == "Детальный анализ":
     st.title("🔎 Детальный анализ по категориям")
-    st.markdown("Статистика успеваемости в разрезе категорий, должностей и предметов.")
+    st.markdown("Статистика успеваемости в разрезе категорий, должностей, предметов и типов школ.")
 
-    analysis_columns = ["Категория", "Должность", "Предмет"]
+    analysis_columns = ["Категория", "Должность", "Предмет", "Тип школы"]
 
     for col in analysis_columns:
         if col in df.columns:
             st.markdown("---")
             st.header(f"Анализ по '{col}'")
             
-            # Drop rows where the category itself is missing
             df_cat = df.dropna(subset=[col])
 
             if df_cat.empty:
                 st.warning(f"Нет данных для анализа по '{col}'.")
                 continue
 
-            # Для "Должность" и "Предмет" показываем только гистограмму
-            if col in ["Должность", "Предмет"]:
-                avg_cat = df_cat.groupby(col)[OUTCOME].mean().round(2).reset_index().sort_values(OUTCOME, ascending=False)
-                fig_bar = px.bar(avg_cat, x=col, y=OUTCOME, color=col, title=f"Средний балл по '{col}'")
-                st.plotly_chart(fig_bar, use_container_width=True)
-            else: # Для "Категория" показываем оба графика
+            # --- Layout specific for 'Категория' ---
+            if col == "Категория":
                 c1, c2 = st.columns(2)
-                
                 with c1:
-                    # Box plot for distribution
                     fig_box = px.box(df_cat, x=col, y=OUTCOME, color=col, title=f"Распределение баллов по '{col}'")
                     st.plotly_chart(fig_box, use_container_width=True)
-
                 with c2:
-                    # Bar chart for average scores
                     avg_cat = df_cat.groupby(col)[OUTCOME].mean().round(2).reset_index().sort_values(OUTCOME, ascending=False)
-                    fig_bar = px.bar(avg_cat, x=col, y=OUTCOME, color=col, title=f"Средний балл по '{col}'")
-                    st.plotly_chart(fig_bar, use_container_width=True)
+                    fig_bar_avg = px.bar(avg_cat, x=col, y=OUTCOME, color=col, title=f"Средний балл по '{col}'")
+                    fig_bar_avg.update_xaxes(tickangle=-90)
+                    st.plotly_chart(fig_bar_avg, use_container_width=True)
+            
+            # --- Layout for other parameters ---
+            else:
+                avg_cat = df_cat.groupby(col)[OUTCOME].mean().round(2).reset_index().sort_values(OUTCOME, ascending=False)
+                fig_bar_avg = px.bar(avg_cat, x=col, y=OUTCOME, color=col, title=f"Средний балл по '{col}'")
+                fig_bar_avg.update_xaxes(tickangle=-90)
+                st.plotly_chart(fig_bar_avg, use_container_width=True)
+
+            # --- Count chart for all parameters ---
+            counts = df_cat[col].value_counts().reset_index()
+            counts.columns = [col, 'count']
+            
+            fig_bar_count = px.bar(counts, x=col, y='count', color=col, title=f"Количество респондентов по '{col}'")
+            fig_bar_count.update_xaxes(tickangle=-90)
+            st.plotly_chart(fig_bar_count, use_container_width=True)
+            
         else:
             st.warning(f"Столбец '{col}' не найден в данных.")
 
