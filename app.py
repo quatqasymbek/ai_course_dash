@@ -112,17 +112,8 @@ if page == "Основной анализ":
                 st.plotly_chart(fig_gender, use_container_width=True)
 
         # --- AGE STATS ---
-        if "Возраст" in df_filtered.columns:
-            st.header("Статистика по возрасту")
-            scatter = go.Scatter(x=df_filtered["Возраст"], y=df_filtered[OUTCOME], mode="markers", opacity=0.4, marker=dict(color="#2a9d8f"), name="Наблюдения")
-            df_sorted = df_filtered.sort_values("Возраст")
-            df_sorted["rolling_mean"] = df_sorted[OUTCOME].rolling(window=50, min_periods=1).mean()
-            smooth = go.Scatter(x=df_sorted["Возраст"], y=df_sorted["rolling_mean"], mode="lines", line=dict(color="orange", width=3), name="Скользящее среднее (50)")
-            fig = go.Figure([scatter, smooth])
-            fig.update_layout(title="Возраст и итоговый балл (сглаженный тренд)", xaxis_title="Возраст", yaxis_title=OUTCOME)
-            st.plotly_chart(fig, use_container_width=True)
-
         if "Возрастная группа" in df_filtered.columns:
+            st.header("Статистика по возрасту")
             age_group_order = ['<25', '25-30', '30-35', '35-40', '40-45', '45-50', '50-55', '55-60', '>60']
             df_filtered['Возрастная группа'] = pd.Categorical(df_filtered['Возрастная группа'], categories=age_group_order, ordered=True)
             c1, c2 = st.columns(2)
