@@ -89,8 +89,26 @@ if page == "Основной анализ":
             with c1:
                 st.plotly_chart(px.box(df_filtered, x="Пол", y=OUTCOME, color="Пол", title="Распределение итогового балла по полу"), use_container_width=True)
             with c2:
-                avg_gender = df_filtered.groupby("Пол")[OUTCOME].mean().reset_index()
-                st.plotly_chart(px.bar(avg_gender, x="Пол", y=OUTCOME, color="Пол", title="Средний итоговый балл по полу", color_discrete_sequence=px.colors.sequential.Teal), use_container_width=True)
+                # Рассчитываем и среднее, и количество
+                agg_gender = df_filtered.groupby("Пол").agg(
+                    avg_score=(OUTCOME, 'mean'),
+                    count=(OUTCOME, 'size')
+                ).reset_index()
+                # Создаем текст для отображения на барах
+                agg_gender['bar_text'] = agg_gender['count'].apply(lambda x: f'n={int(x)}' if pd.notna(x) else "")
+
+                fig_gender = px.bar(
+                    agg_gender,
+                    x="Пол",
+                    y='avg_score',
+                    color="Пол",
+                    title="Средний итоговый балл по полу",
+                    text='bar_text',
+                    color_discrete_sequence=px.colors.sequential.Teal
+                )
+                fig_gender.update_traces(textposition='inside')
+                fig_gender.update_layout(yaxis_title="Средний " + OUTCOME)
+                st.plotly_chart(fig_gender, use_container_width=True)
 
         # --- AGE STATS ---
         if "Возраст" in df_filtered.columns:
@@ -104,18 +122,32 @@ if page == "Основной анализ":
             st.plotly_chart(fig, use_container_width=True)
 
         if "Возрастная группа" in df_filtered.columns:
-            # Define the custom order for age groups
             age_group_order = ['<25', '25-30', '30-35', '35-40', '40-45', '45-50', '50-55', '55-60', '>60']
-            
-            # Apply the custom order by converting to a categorical type
             df_filtered['Возрастная группа'] = pd.Categorical(df_filtered['Возрастная группа'], categories=age_group_order, ordered=True)
-
             c1, c2 = st.columns(2)
             with c1:
                 st.plotly_chart(px.box(df_filtered, x="Возрастная группа", y=OUTCOME, color="Возрастная группа", title="Распределение итогового балла по возрастным группам"), use_container_width=True)
             with c2:
-                avg_agegrp = df_filtered.groupby("Возрастная группа")[OUTCOME].mean().reset_index()
-                st.plotly_chart(px.bar(avg_agegrp, x="Возрастная группа", y=OUTCOME, title="Средний итоговый балл по возрастным группам", color=OUTCOME, color_continuous_scale="Tealgrn"), use_container_width=True)
+                # Рассчитываем и среднее, и количество, сохраняя порядок категорий
+                agg_agegrp = df_filtered.groupby("Возрастная группа", observed=False).agg(
+                    avg_score=(OUTCOME, 'mean'),
+                    count=(OUTCOME, 'size')
+                ).reset_index()
+                # Создаем текст для отображения на барах
+                agg_agegrp['bar_text'] = agg_agegrp['count'].apply(lambda x: f'n={int(x)}' if pd.notna(x) else "")
+
+                fig_agegrp = px.bar(
+                    agg_agegrp,
+                    x="Возрастная группа",
+                    y='avg_score',
+                    title="Средний итоговый балл по возрастным группам",
+                    color='avg_score',
+                    text='bar_text',
+                    color_continuous_scale="Tealgrn"
+                )
+                fig_agegrp.update_traces(textposition='inside')
+                fig_agegrp.update_layout(yaxis_title="Средний " + OUTCOME)
+                st.plotly_chart(fig_agegrp, use_container_width=True)
 
         # --- REGION STATS ---
         if "Область" in df_filtered.columns:
@@ -130,17 +162,18 @@ if page == "Основной анализ":
             avg_obl_full = all_regions.merge(agg_obl, on="Область", how="left")
             avg_obl_full['avg_score'] = avg_obl_full['avg_score'].round(2)
             
-            avg_obl_full['bar_text'] = avg_obl_full.apply(lambda row: f"{row['avg_score']} (n={int(row['count'])})" if pd.notna(row['count']) else "N/A", axis=1)
+            # Обновляем текст на барах, чтобы показывать n=количество
+            avg_obl_full['bar_text'] = avg_obl_full['count'].apply(lambda x: f'n={int(x)}' if pd.notna(x) else "")
 
             fig = px.bar(
                 avg_obl_full.sort_values("avg_score", na_position="first"),
                 x="avg_score", y="Область", orientation="h",
                 color="avg_score", color_continuous_scale="Tealgrn",
                 text='bar_text',
-                title="Средний итоговый балл и количество записей по областям",
+                title="Средний итоговый балл по областям",
                 labels={'avg_score': 'Средний итоговый балл', 'Область': 'Область'}
             )
-            fig.update_traces(textposition='outside')
+            fig.update_traces(textposition='inside')
             fig.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
             st.plotly_chart(fig, use_container_width=True)
 
@@ -149,25 +182,19 @@ if page == "Основной анализ":
 # =============================================================================
 elif page == "Детальный анализ":
     st.title("🔎 Детальный анализ по категориям")
-    
     if df_filtered.empty:
         st.warning("Нет данных, соответствующих выбранным фильтрам.")
     else:
         st.markdown("Статистика успеваемости в разрезе категорий, должностей, предметов и типов школ.")
         analysis_columns = ["Категория", "Должность", "Предмет", "Тип школы"]
-
         for col in analysis_columns:
             if col in df_filtered.columns:
                 st.markdown("---")
                 st.header(f"Анализ по '{col}'")
-                
                 df_cat = df_filtered.dropna(subset=[col])
-
                 if df_cat.empty:
                     st.warning(f"Нет данных для анализа по '{col}' с учетом текущих фильтров.")
                     continue
-
-                # --- Layout specific for 'Категория' ---
                 if col == "Категория":
                     c1, c2 = st.columns(2)
                     with c1:
@@ -178,22 +205,16 @@ elif page == "Детальный анализ":
                         fig_bar_avg = px.bar(avg_cat, x=col, y=OUTCOME, color=col, title=f"Средний балл по '{col}'")
                         fig_bar_avg.update_xaxes(tickangle=-90)
                         st.plotly_chart(fig_bar_avg, use_container_width=True)
-                
-                # --- Layout for other parameters ---
                 else:
                     avg_cat = df_cat.groupby(col)[OUTCOME].mean().round(2).reset_index().sort_values(OUTCOME, ascending=False)
                     fig_bar_avg = px.bar(avg_cat, x=col, y=OUTCOME, color=col, title=f"Средний балл по '{col}'")
                     fig_bar_avg.update_xaxes(tickangle=-90)
                     st.plotly_chart(fig_bar_avg, use_container_width=True)
-
-                # --- Count chart for all parameters ---
                 counts = df_cat[col].value_counts().reset_index()
                 counts.columns = [col, 'count']
-                
                 fig_bar_count = px.bar(counts, x=col, y='count', color=col, title=f"Количество респондентов по '{col}'")
                 fig_bar_count.update_xaxes(tickangle=-90)
                 st.plotly_chart(fig_bar_count, use_container_width=True)
-                
             else:
                 st.warning(f"Столбец '{col}' не найден в данных.")
 
@@ -212,6 +233,28 @@ elif page == "Карта":
         except FileNotFoundError:
             st.error("Файл 'kz_mapped.geojson' не найден. Пожалуйста, убедитесь, что он находится в той же папке, что и app.py.")
             st.stop()
+
+        # --- DEBUGGING BLOCK ---
+        with st.expander("Отладка: Сравнение названий областей"):
+            map_regions = {feature['properties']['name_ru'] for feature in geojson_regions['features']}
+            data_regions = set(df['Область'].dropna().unique())
+            
+            st.info(f"**Найдено в файле карты (GeoJSON):** `{len(map_regions)}` уникальных регионов.")
+            st.info(f"**Найдено в данных (Excel):** `{len(data_regions)}` уникальных регионов.")
+            
+            unmatched_in_data = sorted(list(data_regions - map_regions))
+            unmatched_in_map = sorted(list(map_regions - data_regions))
+
+            if unmatched_in_data:
+                st.error("**Проблема:** Следующие названия есть в данных, но не найдены на карте. Исправьте их в `kz_mapped.geojson`:")
+                st.write(unmatched_in_data)
+            else:
+                st.success("Отлично! Все названия из ваших данных найдены на карте.")
+            
+            if unmatched_in_map:
+                st.warning("**Информация:** Следующие названия есть на карте, но для них нет данных в Excel (это может быть нормально):")
+                st.write(unmatched_in_map)
+
 
         # --- MAP CHART ---
         st.header("Карта по областям")
@@ -238,7 +281,7 @@ elif page == "Карта":
             hover_name='Область',
             hover_data={'avg_score': ':.2f', 'count': True},
             title=f"{color_by} по областям",
-            scope="asia" # This ensures the correct projection
+            scope="asia"
         )
         fig_map.update_geos(fitbounds="locations", visible=False)
         fig_map.update_layout(margin={"r":0,"t":40,"l":0,"b":0})
@@ -248,20 +291,17 @@ elif page == "Карта":
         st.markdown("---")
         st.header("Детализация по районам")
 
-        # Selectbox to choose a region
         available_regions = sorted(df_filtered['Область'].dropna().unique())
         selected_region = st.selectbox(
             "Выберите область для детализации:",
             options=available_regions,
-            index=None, # No default selection
+            index=None,
             placeholder="Выберите область..."
         )
 
         if selected_region:
             if 'Район' in df_filtered.columns:
                 district_data = df_filtered[df_filtered['Область'] == selected_region]
-                
-                # Check if there are any districts for the selected region
                 if not district_data['Район'].dropna().empty:
                     district_agg = district_data.groupby('Район').agg(
                         avg_score=(OUTCOME, 'mean'),
