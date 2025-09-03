@@ -83,7 +83,6 @@ if page == "Основной анализ":
         st.header("Статистика по областям")
         all_regions = pd.DataFrame({"Область": sorted(df["Область"].unique())})
         
-        # Calculate both mean and count
         agg_obl = df.groupby("Область").agg(
             avg_score=(OUTCOME, 'mean'),
             count=(OUTCOME, 'size')
@@ -92,7 +91,6 @@ if page == "Основной анализ":
         avg_obl_full = all_regions.merge(agg_obl, on="Область", how="left")
         avg_obl_full['avg_score'] = avg_obl_full['avg_score'].round(2)
         
-        # Create text for display on bars
         avg_obl_full['bar_text'] = avg_obl_full.apply(lambda row: f"{row['avg_score']} (n={int(row['count'])})" if pd.notna(row['count']) else "N/A", axis=1)
 
         fig = px.bar(
@@ -114,17 +112,33 @@ elif page == "Детальный анализ":
     st.title("🔎 Детальный анализ по категориям")
     st.markdown("Статистика успеваемости в разрезе категорий, должностей, предметов и типов школ.")
 
+    # --- FILTER ---
+    df_filtered = df.copy()
+    if "Предмет" in df.columns:
+        subjects = sorted(df['Предмет'].dropna().unique())
+        selected_subjects = st.multiselect(
+            'Фильтр по предмету:', 
+            options=subjects, 
+            default=subjects
+        )
+        if selected_subjects:
+            df_filtered = df[df['Предмет'].isin(selected_subjects)]
+        else:
+            # If nothing is selected, create an empty dataframe to show empty charts
+            df_filtered = pd.DataFrame(columns=df.columns)
+
+
     analysis_columns = ["Категория", "Должность", "Предмет", "Тип школы"]
 
     for col in analysis_columns:
-        if col in df.columns:
+        if col in df_filtered.columns:
             st.markdown("---")
             st.header(f"Анализ по '{col}'")
             
-            df_cat = df.dropna(subset=[col])
+            df_cat = df_filtered.dropna(subset=[col])
 
             if df_cat.empty:
-                st.warning(f"Нет данных для анализа по '{col}'.")
+                st.warning(f"Нет данных для анализа по '{col}' с учетом текущих фильтров.")
                 continue
 
             # --- Layout specific for 'Категория' ---
