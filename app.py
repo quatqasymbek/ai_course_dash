@@ -128,18 +128,24 @@ elif page == "Детальный анализ":
                 st.warning(f"Нет данных для анализа по '{col}'.")
                 continue
 
-            c1, c2 = st.columns(2)
-            
-            with c1:
-                # Box plot for distribution
-                fig_box = px.box(df_cat, x=col, y=OUTCOME, color=col, title=f"Распределение баллов по '{col}'")
-                st.plotly_chart(fig_box, use_container_width=True)
-
-            with c2:
-                # Bar chart for average scores
+            # Для "Должность" и "Предмет" показываем только гистограмму
+            if col in ["Должность", "Предмет"]:
                 avg_cat = df_cat.groupby(col)[OUTCOME].mean().round(2).reset_index().sort_values(OUTCOME, ascending=False)
                 fig_bar = px.bar(avg_cat, x=col, y=OUTCOME, color=col, title=f"Средний балл по '{col}'")
                 st.plotly_chart(fig_bar, use_container_width=True)
+            else: # Для "Категория" показываем оба графика
+                c1, c2 = st.columns(2)
+                
+                with c1:
+                    # Box plot for distribution
+                    fig_box = px.box(df_cat, x=col, y=OUTCOME, color=col, title=f"Распределение баллов по '{col}'")
+                    st.plotly_chart(fig_box, use_container_width=True)
+
+                with c2:
+                    # Bar chart for average scores
+                    avg_cat = df_cat.groupby(col)[OUTCOME].mean().round(2).reset_index().sort_values(OUTCOME, ascending=False)
+                    fig_bar = px.bar(avg_cat, x=col, y=OUTCOME, color=col, title=f"Средний балл по '{col}'")
+                    st.plotly_chart(fig_bar, use_container_width=True)
         else:
             st.warning(f"Столбец '{col}' не найден в данных.")
 
