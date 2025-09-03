@@ -4,6 +4,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import json
 
 # =============================================================================
 # CONFIG
@@ -29,7 +30,7 @@ df[OUTCOME] = pd.to_numeric(df[OUTCOME], errors="coerce")
 # SIDEBAR: NAVIGATION & FILTERS
 # =============================================================================
 st.sidebar.title("Навигация")
-page = st.sidebar.radio("Выберите страницу", ["Основной анализ", "Детальный анализ"])
+page = st.sidebar.radio("Выберите страницу", ["Основной анализ", "Детальный анализ", "Карта"])
 
 st.sidebar.title("Фильтры")
 df_filtered = df.copy()
@@ -64,7 +65,7 @@ if "Должность" in df.columns and not df_filtered.empty:
 # PAGE 1: Основной анализ
 # =============================================================================
 if page == "Основной анализ":
-    st.title(" Основной анализ успеваемости")
+    st.title("📊 Основной анализ успеваемости")
 
     if df_filtered.empty:
         st.warning("Нет данных, соответствующих выбранным фильтрам.")
@@ -141,7 +142,7 @@ if page == "Основной анализ":
 # PAGE 2: Детальный анализ
 # =============================================================================
 elif page == "Детальный анализ":
-    st.title("Детальный анализ по категориям")
+    st.title("🔎 Детальный анализ по категориям")
     
     if df_filtered.empty:
         st.warning("Нет данных, соответствующих выбранным фильтрам.")
@@ -189,4 +190,90 @@ elif page == "Детальный анализ":
                 
             else:
                 st.warning(f"Столбец '{col}' не найден в данных.")
+
+# =============================================================================
+# PAGE 3: Карта
+# =============================================================================
+elif page == "Карта":
+    st.title("🗺️ Карта успеваемости")
+
+    if df_filtered.empty:
+        st.warning("Нет данных, соответствующих выбранным фильтрам.")
+    else:
+        try:
+            with open("kz_mapped.geojson", "r", encoding="utf-8") as f:
+                geojson_regions = json.load(f)
+        except FileNotFoundError:
+            st.error("Файл 'kz_mapped.geojson' не найден. Пожалуйста, убедитесь, что он находится в той же папке, что и app.py.")
+            st.stop()
+
+        # --- MAP CHART ---
+        st.header("Карта по областям")
+        color_by = st.radio(
+            "Раскрасить карту по:",
+            ('Средний балл', 'Количество записей'),
+            horizontal=True
+        )
+
+        map_data = df_filtered.groupby('Область').agg(
+            avg_score=(OUTCOME, 'mean'),
+            count=(OUTCOME, 'size')
+        ).reset_index()
+
+        color_map_col = 'avg_score' if color_by == 'Средний балл' else 'count'
+
+        fig_map = px.choropleth(
+            map_data,
+            geojson=geojson_regions,
+            featureidkey="properties.name_ru",
+            locations='Область',
+            color=color_map_col,
+            color_continuous_scale="Tealgrn",
+            hover_name='Область',
+            hover_data={'avg_score': ':.2f', 'count': True},
+            title=f"{color_by} по областям"
+        )
+        fig_map.update_geos(fitbounds="locations", visible=False)
+        fig_map.update_layout(margin={"r":0,"t":40,"l":0,"b":0})
+        st.plotly_chart(fig_map, use_container_width=True)
+
+        # --- DISTRICT (РАЙОН) DRILL-DOWN ---
+        st.markdown("---")
+        st.header("Детализация по районам")
+
+        # Selectbox to choose a region
+        available_regions = sorted(df_filtered['Область'].dropna().unique())
+        selected_region = st.selectbox(
+            "Выберите область для детализации:",
+            options=available_regions,
+            index=None, # No default selection
+            placeholder="Выберите область..."
+        )
+
+        if selected_region:
+            if 'Район' in df_filtered.columns:
+                district_data = df_filtered[df_filtered['Область'] == selected_region]
+                
+                # Check if there are any districts for the selected region
+                if not district_data['Район'].dropna().empty:
+                    district_agg = district_data.groupby('Район').agg(
+                        avg_score=(OUTCOME, 'mean'),
+                        count=(OUTCOME, 'size')
+                    ).round(2).reset_index().sort_values('avg_score', ascending=True)
+
+                    fig_district = px.bar(
+                        district_agg,
+                        x='avg_score',
+                        y='Район',
+                        orientation='h',
+                        title=f"Средний балл по районам: {selected_region}",
+                        labels={'avg_score': 'Средний балл', 'Район': 'Район'},
+                        text='avg_score'
+                    )
+                    fig_district.update_traces(textposition='outside')
+                    st.plotly_chart(fig_district, use_container_width=True)
+                else:
+                    st.info(f"В области '{selected_region}' нет данных по районам для отображения.")
+            else:
+                st.warning("Столбец 'Район' не найден в данных для детализации.")
 
