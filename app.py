@@ -97,13 +97,19 @@ if page == "Основной анализ":
             st.header("Статистика по возрасту")
             scatter = go.Scatter(x=df_filtered["Возраст"], y=df_filtered[OUTCOME], mode="markers", opacity=0.4, marker=dict(color="#2a9d8f"), name="Наблюдения")
             df_sorted = df_filtered.sort_values("Возраст")
-            df_sorted["rolling_mean"] = df_sorted[OUTCOME].rolling(window=30, min_periods=1).mean()
-            smooth = go.Scatter(x=df_sorted["Возраст"], y=df_sorted["rolling_mean"], mode="lines", line=dict(color="orange", width=3), name="Скользящее среднее (30)")
+            df_sorted["rolling_mean"] = df_sorted[OUTCOME].rolling(window=50, min_periods=1).mean()
+            smooth = go.Scatter(x=df_sorted["Возраст"], y=df_sorted["rolling_mean"], mode="lines", line=dict(color="orange", width=3), name="Скользящее среднее (50)")
             fig = go.Figure([scatter, smooth])
             fig.update_layout(title="Возраст и итоговый балл (сглаженный тренд)", xaxis_title="Возраст", yaxis_title=OUTCOME)
             st.plotly_chart(fig, use_container_width=True)
 
         if "Возрастная группа" in df_filtered.columns:
+            # Define the custom order for age groups
+            age_group_order = ['<25', '25-30', '30-35', '35-40', '40-45', '45-50', '50-55', '55-60', '>60']
+            
+            # Apply the custom order by converting to a categorical type
+            df_filtered['Возрастная группа'] = pd.Categorical(df_filtered['Возрастная группа'], categories=age_group_order, ordered=True)
+
             c1, c2 = st.columns(2)
             with c1:
                 st.plotly_chart(px.box(df_filtered, x="Возрастная группа", y=OUTCOME, color="Возрастная группа", title="Распределение итогового балла по возрастным группам"), use_container_width=True)
@@ -231,7 +237,8 @@ elif page == "Карта":
             color_continuous_scale="Tealgrn",
             hover_name='Область',
             hover_data={'avg_score': ':.2f', 'count': True},
-            title=f"{color_by} по областям"
+            title=f"{color_by} по областям",
+            scope="asia" # This ensures the correct projection
         )
         fig_map.update_geos(fitbounds="locations", visible=False)
         fig_map.update_layout(margin={"r":0,"t":40,"l":0,"b":0})
