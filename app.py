@@ -93,7 +93,10 @@ if page == "Основной анализ":
                     avg_score=(OUTCOME, 'mean'),
                     count=(OUTCOME, 'size')
                 ).reset_index()
-                agg_gender['bar_text'] = agg_gender['count'].apply(lambda x: f'n={int(x)}' if pd.notna(x) else "")
+                agg_gender['bar_text'] = agg_gender.apply(
+                    lambda row: f"Ср. балл: {row['avg_score']:.2f}<br>Кол-во: {int(row['count'])}",
+                    axis=1
+                )
 
                 fig_gender = px.bar(
                     agg_gender,
@@ -104,7 +107,7 @@ if page == "Основной анализ":
                     text='bar_text',
                     color_discrete_sequence=px.colors.sequential.Teal
                 )
-                fig_gender.update_traces(textposition='inside')
+                fig_gender.update_traces(texttemplate='%{text}', textposition='inside')
                 fig_gender.update_layout(yaxis_title="Средний " + OUTCOME)
                 st.plotly_chart(fig_gender, use_container_width=True)
 
@@ -130,7 +133,10 @@ if page == "Основной анализ":
                     avg_score=(OUTCOME, 'mean'),
                     count=(OUTCOME, 'size')
                 ).reset_index()
-                agg_agegrp['bar_text'] = agg_agegrp['count'].apply(lambda x: f'n={int(x)}' if pd.notna(x) else "")
+                agg_agegrp['bar_text'] = agg_agegrp.apply(
+                    lambda row: f"Ср. балл: {row['avg_score']:.2f}<br>Кол-во: {int(row['count'])}",
+                    axis=1
+                )
 
                 fig_agegrp = px.bar(
                     agg_agegrp,
@@ -141,7 +147,7 @@ if page == "Основной анализ":
                     text='bar_text',
                     color_continuous_scale="Tealgrn"
                 )
-                fig_agegrp.update_traces(textposition='inside')
+                fig_agegrp.update_traces(texttemplate='%{text}', textposition='inside')
                 fig_agegrp.update_layout(yaxis_title="Средний " + OUTCOME)
                 st.plotly_chart(fig_agegrp, use_container_width=True)
 
@@ -157,7 +163,10 @@ if page == "Основной анализ":
             
             avg_obl_full = all_regions.merge(agg_obl, on="Область", how="left")
             avg_obl_full['avg_score'] = avg_obl_full['avg_score'].round(2)
-            avg_obl_full['bar_text'] = avg_obl_full['count'].apply(lambda x: f'n={int(x)}' if pd.notna(x) else "")
+            avg_obl_full['bar_text'] = avg_obl_full.apply(
+                lambda row: f"Ср. балл: {row['avg_score']}<br>Кол-во: {int(row['count'])}" if pd.notna(row['count']) else "",
+                axis=1
+            )
 
             fig = px.bar(
                 avg_obl_full.sort_values("avg_score", na_position="first"),
@@ -167,7 +176,7 @@ if page == "Основной анализ":
                 title="Средний итоговый балл по областям",
                 labels={'avg_score': 'Средний итоговый балл', 'Область': 'Область'}
             )
-            fig.update_traces(textposition='inside')
+            fig.update_traces(texttemplate='%{text}', textposition='inside')
             fig.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
             st.plotly_chart(fig, use_container_width=True)
 
@@ -206,7 +215,7 @@ elif page == "Детальный анализ":
                     st.plotly_chart(fig_bar_avg, use_container_width=True)
                 counts = df_cat[col].value_counts().reset_index()
                 counts.columns = [col, 'count']
-                fig_bar_count = px.bar(counts, x=col, y='count', color=col, title=f"Количество слушателей по '{col}'")
+                fig_bar_count = px.bar(counts, x=col, y='count', color=col, title=f"Количество респондентов по '{col}'")
                 fig_bar_count.update_xaxes(tickangle=-90)
                 st.plotly_chart(fig_bar_count, use_container_width=True)
             else:
