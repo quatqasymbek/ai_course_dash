@@ -89,12 +89,10 @@ if page == "Основной анализ":
             with c1:
                 st.plotly_chart(px.box(df_filtered, x="Пол", y=OUTCOME, color="Пол", title="Распределение итогового балла по полу"), use_container_width=True)
             with c2:
-                # Рассчитываем и среднее, и количество
                 agg_gender = df_filtered.groupby("Пол").agg(
                     avg_score=(OUTCOME, 'mean'),
                     count=(OUTCOME, 'size')
                 ).reset_index()
-                # Создаем текст для отображения на барах
                 agg_gender['bar_text'] = agg_gender['count'].apply(lambda x: f'n={int(x)}' if pd.notna(x) else "")
 
                 fig_gender = px.bar(
@@ -128,12 +126,10 @@ if page == "Основной анализ":
             with c1:
                 st.plotly_chart(px.box(df_filtered, x="Возрастная группа", y=OUTCOME, color="Возрастная группа", title="Распределение итогового балла по возрастным группам"), use_container_width=True)
             with c2:
-                # Рассчитываем и среднее, и количество, сохраняя порядок категорий
                 agg_agegrp = df_filtered.groupby("Возрастная группа", observed=False).agg(
                     avg_score=(OUTCOME, 'mean'),
                     count=(OUTCOME, 'size')
                 ).reset_index()
-                # Создаем текст для отображения на барах
                 agg_agegrp['bar_text'] = agg_agegrp['count'].apply(lambda x: f'n={int(x)}' if pd.notna(x) else "")
 
                 fig_agegrp = px.bar(
@@ -152,7 +148,7 @@ if page == "Основной анализ":
         # --- REGION STATS ---
         if "Область" in df_filtered.columns:
             st.header("Статистика по областям")
-            all_regions = pd.DataFrame({"Область": sorted(df["Область"].unique())}) # Base on original df to show all regions
+            all_regions = pd.DataFrame({"Область": sorted(df["Область"].unique())})
             
             agg_obl = df_filtered.groupby("Область").agg(
                 avg_score=(OUTCOME, 'mean'),
@@ -161,8 +157,6 @@ if page == "Основной анализ":
             
             avg_obl_full = all_regions.merge(agg_obl, on="Область", how="left")
             avg_obl_full['avg_score'] = avg_obl_full['avg_score'].round(2)
-            
-            # Обновляем текст на барах, чтобы показывать n=количество
             avg_obl_full['bar_text'] = avg_obl_full['count'].apply(lambda x: f'n={int(x)}' if pd.notna(x) else "")
 
             fig = px.bar(
@@ -228,33 +222,34 @@ elif page == "Карта":
         st.warning("Нет данных, соответствующих выбранным фильтрам.")
     else:
         try:
-            with open("kz_mapped.geojson", "r", encoding="utf-8") as f:
+            # Load the raw GeoJSON file with English names
+            with open("kz.json", "r", encoding="utf-8") as f:
                 geojson_regions = json.load(f)
         except FileNotFoundError:
-            st.error("Файл 'kz_mapped.geojson' не найден. Пожалуйста, убедитесь, что он находится в той же папке, что и app.py.")
+            st.error("Файл 'kz.json' не найден. Пожалуйста, убедитесь, что он находится в той же папке, что и app.py.")
             st.stop()
 
-        # --- DEBUGGING BLOCK ---
-        with st.expander("Отладка: Сравнение названий областей"):
-            map_regions = {feature['properties']['name_ru'] for feature in geojson_regions['features']}
-            data_regions = set(df['Область'].dropna().unique())
-            
-            st.info(f"**Найдено в файле карты (GeoJSON):** `{len(map_regions)}` уникальных регионов.")
-            st.info(f"**Найдено в данных (Excel):** `{len(data_regions)}` уникальных регионов.")
-            
-            unmatched_in_data = sorted(list(data_regions - map_regions))
-            unmatched_in_map = sorted(list(map_regions - data_regions))
-
-            if unmatched_in_data:
-                st.error("**Проблема:** Следующие названия есть в данных, но не найдены на карте. Исправьте их в `kz_mapped.geojson`:")
-                st.write(unmatched_in_data)
-            else:
-                st.success("Отлично! Все названия из ваших данных найдены на карте.")
-            
-            if unmatched_in_map:
-                st.warning("**Информация:** Следующие названия есть на карте, но для них нет данных в Excel (это может быть нормально):")
-                st.write(unmatched_in_map)
-
+        # --- MAPPING DICTIONARY ---
+        # Maps Russian names from DataFrame to English names in GeoJSON properties
+        region_map = {
+            'Акмолинская область': 'Akmola',
+            'Актюбинская область': 'Aktobe',
+            'Алматинская область': 'Almaty',
+            'г. Алматы': 'Almaty City',
+            'Атырауская область': 'Atyrau',
+            'Восточно-Казахстанская область': 'East Kazakhstan',
+            'Жамбылская область': 'Jambyl',
+            'Западно-Казахстанская область': 'West Kazakhstan',
+            'Карагандинская область': 'Karaganda',
+            'Костанайская область': 'Kostanay',
+            'Кызылординская область': 'Kyzylorda',
+            'Мангистауская область': 'Mangystau',
+            'Павлодарская область': 'Pavlodar',
+            'Северо-Казахстанская область': 'North Kazakhstan',
+            'Туркестанская область': 'Turkestan',
+            'г. Астана': 'Nur-Sultan',
+            'г. Шымкент': 'Shymkent'
+        }
 
         # --- MAP CHART ---
         st.header("Карта по областям")
@@ -269,16 +264,24 @@ elif page == "Карта":
             count=(OUTCOME, 'size')
         ).reset_index()
 
+        # Create a new column with English names for mapping
+        map_data['region_en'] = map_data['Область'].map(region_map)
+
+        # Check for regions that were not mapped
+        unmapped_regions = map_data[map_data['region_en'].isna()]['Область'].tolist()
+        if unmapped_regions:
+            st.warning(f"Не удалось сопоставить следующие регионы из данных: {unmapped_regions}. Проверьте словарь `region_map` в коде.")
+
         color_map_col = 'avg_score' if color_by == 'Средний балл' else 'count'
 
         fig_map = px.choropleth(
             map_data,
             geojson=geojson_regions,
-            featureidkey="properties.name_ru",
-            locations='Область',
+            featureidkey="properties.name",  # Link to English name in GeoJSON
+            locations='region_en',          # Use the mapped English names for location
             color=color_map_col,
             color_continuous_scale="Tealgrn",
-            hover_name='Область',
+            hover_name='Область',           # Show Russian name in tooltip
             hover_data={'avg_score': ':.2f', 'count': True},
             title=f"{color_by} по областям",
             scope="asia"
