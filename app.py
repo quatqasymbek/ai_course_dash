@@ -1,8 +1,9 @@
-# app.py (static-first lightweight with optional map)
+# app.py (static-first lightweight dashboard without statsmodels)
 # -*- coding: utf-8 -*-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import json
 
 # =============================================================================
@@ -60,14 +61,28 @@ if "Пол" in df.columns:
 if "Возраст" in df.columns:
     st.header("Статистика по возрасту")
 
-    # Scatter plot with trendline
-    st.plotly_chart(
-        px.scatter(df, x="Возраст", y=OUTCOME, opacity=0.5,
-                   trendline="lowess",
-                   color_discrete_sequence=["#2a9d8f"],
-                   title="Возраст и итоговый балл"),
-        use_container_width=True
+    # Scatter with rolling mean smoothing
+    scatter = go.Scatter(
+        x=df["Возраст"], y=df[OUTCOME],
+        mode="markers", opacity=0.4,
+        marker=dict(color="#2a9d8f"),
+        name="Наблюдения"
     )
+
+    df_sorted = df.sort_values("Возраст")
+    df_sorted["rolling_mean"] = df_sorted[OUTCOME].rolling(window=30, min_periods=1).mean()
+
+    smooth = go.Scatter(
+        x=df_sorted["Возраст"], y=df_sorted["rolling_mean"],
+        mode="lines", line=dict(color="orange", width=3),
+        name="Скользящее среднее (30)"
+    )
+
+    fig = go.Figure([scatter, smooth])
+    fig.update_layout(title="Возраст и итоговый балл (сглаженный тренд)",
+                      xaxis_title="Возраст", yaxis_title=OUTCOME)
+
+    st.plotly_chart(fig, use_container_width=True)
 
 if "Возрастная группа" in df.columns:
     c1, c2 = st.columns(2)
