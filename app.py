@@ -112,20 +112,38 @@ elif page == "Детальный анализ":
     st.title("🔎 Детальный анализ по категориям")
     st.markdown("Статистика успеваемости в разрезе категорий, должностей, предметов и типов школ.")
 
-    # --- FILTER ---
+    # --- FILTERS ---
     df_filtered = df.copy()
-    if "Предмет" in df.columns:
-        subjects = sorted(df['Предмет'].dropna().unique())
-        selected_subjects = st.multiselect(
-            'Фильтр по предмету:', 
-            options=subjects, 
-            default=subjects
-        )
-        if selected_subjects:
-            df_filtered = df[df['Предмет'].isin(selected_subjects)]
-        else:
-            # If nothing is selected, create an empty dataframe to show empty charts
-            df_filtered = pd.DataFrame(columns=df.columns)
+    
+    # Use columns for a cleaner filter layout
+    filter_col1, filter_col2 = st.columns(2)
+
+    with filter_col1:
+        if "Предмет" in df.columns:
+            subjects = sorted(df['Предмет'].dropna().unique())
+            selected_subjects = st.multiselect(
+                'Фильтр по предмету:', 
+                options=subjects, 
+                default=subjects
+            )
+            if not selected_subjects:
+                # If nothing is selected, create an empty dataframe to show empty charts
+                df_filtered = pd.DataFrame(columns=df.columns)
+            else:
+                df_filtered = df_filtered[df_filtered['Предмет'].isin(selected_subjects)]
+
+    with filter_col2:
+        if "Должность" in df.columns and not df_filtered.empty:
+            positions = sorted(df_filtered['Должность'].dropna().unique())
+            selected_positions = st.multiselect(
+                'Фильтр по должности:', 
+                options=positions, 
+                default=positions
+            )
+            if not selected_positions:
+                df_filtered = pd.DataFrame(columns=df.columns)
+            else:
+                df_filtered = df_filtered[df_filtered['Должность'].isin(selected_positions)]
 
 
     analysis_columns = ["Категория", "Должность", "Предмет", "Тип школы"]
@@ -170,4 +188,5 @@ elif page == "Детальный анализ":
             
         else:
             st.warning(f"Столбец '{col}' не найден в данных.")
+
 
