@@ -1,4 +1,4 @@
-# app.py (multi-page static dashboard)
+# app.py (multi-page static dashboard with global filters)
 # -*- coding: utf-8 -*-
 import streamlit as st
 import pandas as pd
@@ -26,167 +26,167 @@ if df.empty or OUTCOME not in df.columns:
 df[OUTCOME] = pd.to_numeric(df[OUTCOME], errors="coerce")
 
 # =============================================================================
-# PAGE NAVIGATION
+# SIDEBAR: NAVIGATION & FILTERS
 # =============================================================================
 st.sidebar.title("Навигация")
 page = st.sidebar.radio("Выберите страницу", ["Основной анализ", "Детальный анализ"])
+
+st.sidebar.title("Фильтры")
+df_filtered = df.copy()
+
+# --- Subject Filter ---
+if "Предмет" in df.columns:
+    subjects = sorted(df['Предмет'].dropna().unique())
+    selected_subjects = st.sidebar.multiselect(
+        'Фильтр по предмету:',
+        options=subjects,
+        default=subjects
+    )
+    if not selected_subjects:
+        df_filtered = pd.DataFrame(columns=df.columns)
+    else:
+        df_filtered = df_filtered[df_filtered['Предмет'].isin(selected_subjects)]
+
+# --- Position Filter (cascading) ---
+if "Должность" in df.columns and not df_filtered.empty:
+    positions = sorted(df_filtered['Должность'].dropna().unique())
+    selected_positions = st.sidebar.multiselect(
+        'Фильтр по должности:',
+        options=positions,
+        default=positions
+    )
+    if not selected_positions:
+        df_filtered = pd.DataFrame(columns=df.columns)
+    else:
+        df_filtered = df_filtered[df_filtered['Должность'].isin(selected_positions)]
 
 # =============================================================================
 # PAGE 1: Основной анализ
 # =============================================================================
 if page == "Основной анализ":
     st.title("📊 Основной анализ успеваемости")
-    st.markdown("Ниже приведены ключевые статистики по полу, возрасту и областям.")
 
-    # --- OVERALL STATS ---
-    st.header("Общая статистика")
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.metric("Всего записей", f"{len(df):,}")
-    with c2:
-        st.metric("Средний балл", f"{df[OUTCOME].mean():.2f}")
-    with c3:
-        st.metric("Медианный балл", f"{df[OUTCOME].median():.2f}")
-    st.markdown("---")
-
-    # --- GENDER STATS ---
-    if "Пол" in df.columns:
-        st.header("Статистика по полу")
-        c1, c2 = st.columns(2)
+    if df_filtered.empty:
+        st.warning("Нет данных, соответствующих выбранным фильтрам.")
+    else:
+        st.markdown("Ниже приведены ключевые статистики по полу, возрасту и областям.")
+        # --- OVERALL STATS ---
+        st.header("Общая статистика")
+        c1, c2, c3 = st.columns(3)
         with c1:
-            st.plotly_chart(px.box(df, x="Пол", y=OUTCOME, color="Пол", title="Распределение итогового балла по полу"), use_container_width=True)
+            st.metric("Всего записей", f"{len(df_filtered):,}")
         with c2:
-            avg_gender = df.groupby("Пол")[OUTCOME].mean().reset_index()
-            st.plotly_chart(px.bar(avg_gender, x="Пол", y=OUTCOME, color="Пол", title="Средний итоговый балл по полу", color_discrete_sequence=px.colors.sequential.Teal), use_container_width=True)
+            st.metric("Средний балл", f"{df_filtered[OUTCOME].mean():.2f}")
+        with c3:
+            st.metric("Медианный балл", f"{df_filtered[OUTCOME].median():.2f}")
+        st.markdown("---")
 
-    # --- AGE STATS ---
-    if "Возраст" in df.columns:
-        st.header("Статистика по возрасту")
-        scatter = go.Scatter(x=df["Возраст"], y=df[OUTCOME], mode="markers", opacity=0.4, marker=dict(color="#2a9d8f"), name="Наблюдения")
-        df_sorted = df.sort_values("Возраст")
-        df_sorted["rolling_mean"] = df_sorted[OUTCOME].rolling(window=30, min_periods=1).mean()
-        smooth = go.Scatter(x=df_sorted["Возраст"], y=df_sorted["rolling_mean"], mode="lines", line=dict(color="orange", width=3), name="Скользящее среднее (30)")
-        fig = go.Figure([scatter, smooth])
-        fig.update_layout(title="Возраст и итоговый балл (сглаженный тренд)", xaxis_title="Возраст", yaxis_title=OUTCOME)
-        st.plotly_chart(fig, use_container_width=True)
+        # --- GENDER STATS ---
+        if "Пол" in df_filtered.columns:
+            st.header("Статистика по полу")
+            c1, c2 = st.columns(2)
+            with c1:
+                st.plotly_chart(px.box(df_filtered, x="Пол", y=OUTCOME, color="Пол", title="Распределение итогового балла по полу"), use_container_width=True)
+            with c2:
+                avg_gender = df_filtered.groupby("Пол")[OUTCOME].mean().reset_index()
+                st.plotly_chart(px.bar(avg_gender, x="Пол", y=OUTCOME, color="Пол", title="Средний итоговый балл по полу", color_discrete_sequence=px.colors.sequential.Teal), use_container_width=True)
 
-    if "Возрастная группа" in df.columns:
-        c1, c2 = st.columns(2)
-        with c1:
-            st.plotly_chart(px.box(df, x="Возрастная группа", y=OUTCOME, color="Возрастная группа", title="Распределение итогового балла по возрастным группам"), use_container_width=True)
-        with c2:
-            avg_agegrp = df.groupby("Возрастная группа")[OUTCOME].mean().reset_index()
-            st.plotly_chart(px.bar(avg_agegrp, x="Возрастная группа", y=OUTCOME, title="Средний итоговый балл по возрастным группам", color=OUTCOME, color_continuous_scale="Tealgrn"), use_container_width=True)
+        # --- AGE STATS ---
+        if "Возраст" in df_filtered.columns:
+            st.header("Статистика по возрасту")
+            scatter = go.Scatter(x=df_filtered["Возраст"], y=df_filtered[OUTCOME], mode="markers", opacity=0.4, marker=dict(color="#2a9d8f"), name="Наблюдения")
+            df_sorted = df_filtered.sort_values("Возраст")
+            df_sorted["rolling_mean"] = df_sorted[OUTCOME].rolling(window=30, min_periods=1).mean()
+            smooth = go.Scatter(x=df_sorted["Возраст"], y=df_sorted["rolling_mean"], mode="lines", line=dict(color="orange", width=3), name="Скользящее среднее (30)")
+            fig = go.Figure([scatter, smooth])
+            fig.update_layout(title="Возраст и итоговый балл (сглаженный тренд)", xaxis_title="Возраст", yaxis_title=OUTCOME)
+            st.plotly_chart(fig, use_container_width=True)
 
-    # --- REGION STATS ---
-    if "Область" in df.columns:
-        st.header("Статистика по областям")
-        all_regions = pd.DataFrame({"Область": sorted(df["Область"].unique())})
-        
-        agg_obl = df.groupby("Область").agg(
-            avg_score=(OUTCOME, 'mean'),
-            count=(OUTCOME, 'size')
-        ).reset_index()
-        
-        avg_obl_full = all_regions.merge(agg_obl, on="Область", how="left")
-        avg_obl_full['avg_score'] = avg_obl_full['avg_score'].round(2)
-        
-        avg_obl_full['bar_text'] = avg_obl_full.apply(lambda row: f"{row['avg_score']} (n={int(row['count'])})" if pd.notna(row['count']) else "N/A", axis=1)
+        if "Возрастная группа" in df_filtered.columns:
+            c1, c2 = st.columns(2)
+            with c1:
+                st.plotly_chart(px.box(df_filtered, x="Возрастная группа", y=OUTCOME, color="Возрастная группа", title="Распределение итогового балла по возрастным группам"), use_container_width=True)
+            with c2:
+                avg_agegrp = df_filtered.groupby("Возрастная группа")[OUTCOME].mean().reset_index()
+                st.plotly_chart(px.bar(avg_agegrp, x="Возрастная группа", y=OUTCOME, title="Средний итоговый балл по возрастным группам", color=OUTCOME, color_continuous_scale="Tealgrn"), use_container_width=True)
 
-        fig = px.bar(
-            avg_obl_full.sort_values("avg_score", na_position="first"),
-            x="avg_score", y="Область", orientation="h",
-            color="avg_score", color_continuous_scale="Tealgrn",
-            text='bar_text',
-            title="Средний итоговый балл и количество записей по областям",
-            labels={'avg_score': 'Средний итоговый балл', 'Область': 'Область'}
-        )
-        fig.update_traces(textposition='outside')
-        fig.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
-        st.plotly_chart(fig, use_container_width=True)
+        # --- REGION STATS ---
+        if "Область" in df_filtered.columns:
+            st.header("Статистика по областям")
+            all_regions = pd.DataFrame({"Область": sorted(df["Область"].unique())}) # Base on original df to show all regions
+            
+            agg_obl = df_filtered.groupby("Область").agg(
+                avg_score=(OUTCOME, 'mean'),
+                count=(OUTCOME, 'size')
+            ).reset_index()
+            
+            avg_obl_full = all_regions.merge(agg_obl, on="Область", how="left")
+            avg_obl_full['avg_score'] = avg_obl_full['avg_score'].round(2)
+            
+            avg_obl_full['bar_text'] = avg_obl_full.apply(lambda row: f"{row['avg_score']} (n={int(row['count'])})" if pd.notna(row['count']) else "N/A", axis=1)
+
+            fig = px.bar(
+                avg_obl_full.sort_values("avg_score", na_position="first"),
+                x="avg_score", y="Область", orientation="h",
+                color="avg_score", color_continuous_scale="Tealgrn",
+                text='bar_text',
+                title="Средний итоговый балл и количество записей по областям",
+                labels={'avg_score': 'Средний итоговый балл', 'Область': 'Область'}
+            )
+            fig.update_traces(textposition='outside')
+            fig.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
+            st.plotly_chart(fig, use_container_width=True)
 
 # =============================================================================
 # PAGE 2: Детальный анализ
 # =============================================================================
 elif page == "Детальный анализ":
     st.title("🔎 Детальный анализ по категориям")
-    st.markdown("Статистика успеваемости в разрезе категорий, должностей, предметов и типов школ.")
-
-    # --- FILTERS ---
-    df_filtered = df.copy()
     
-    # Use columns for a cleaner filter layout
-    filter_col1, filter_col2 = st.columns(2)
+    if df_filtered.empty:
+        st.warning("Нет данных, соответствующих выбранным фильтрам.")
+    else:
+        st.markdown("Статистика успеваемости в разрезе категорий, должностей, предметов и типов школ.")
+        analysis_columns = ["Категория", "Должность", "Предмет", "Тип школы"]
 
-    with filter_col1:
-        if "Предмет" in df.columns:
-            subjects = sorted(df['Предмет'].dropna().unique())
-            selected_subjects = st.multiselect(
-                'Фильтр по предмету:', 
-                options=subjects, 
-                default=subjects
-            )
-            if not selected_subjects:
-                # If nothing is selected, create an empty dataframe to show empty charts
-                df_filtered = pd.DataFrame(columns=df.columns)
-            else:
-                df_filtered = df_filtered[df_filtered['Предмет'].isin(selected_subjects)]
+        for col in analysis_columns:
+            if col in df_filtered.columns:
+                st.markdown("---")
+                st.header(f"Анализ по '{col}'")
+                
+                df_cat = df_filtered.dropna(subset=[col])
 
-    with filter_col2:
-        if "Должность" in df.columns and not df_filtered.empty:
-            positions = sorted(df_filtered['Должность'].dropna().unique())
-            selected_positions = st.multiselect(
-                'Фильтр по должности:', 
-                options=positions, 
-                default=positions
-            )
-            if not selected_positions:
-                df_filtered = pd.DataFrame(columns=df.columns)
-            else:
-                df_filtered = df_filtered[df_filtered['Должность'].isin(selected_positions)]
+                if df_cat.empty:
+                    st.warning(f"Нет данных для анализа по '{col}' с учетом текущих фильтров.")
+                    continue
 
-
-    analysis_columns = ["Категория", "Должность", "Предмет", "Тип школы"]
-
-    for col in analysis_columns:
-        if col in df_filtered.columns:
-            st.markdown("---")
-            st.header(f"Анализ по '{col}'")
-            
-            df_cat = df_filtered.dropna(subset=[col])
-
-            if df_cat.empty:
-                st.warning(f"Нет данных для анализа по '{col}' с учетом текущих фильтров.")
-                continue
-
-            # --- Layout specific for 'Категория' ---
-            if col == "Категория":
-                c1, c2 = st.columns(2)
-                with c1:
-                    fig_box = px.box(df_cat, x=col, y=OUTCOME, color=col, title=f"Распределение баллов по '{col}'")
-                    st.plotly_chart(fig_box, use_container_width=True)
-                with c2:
+                # --- Layout specific for 'Категория' ---
+                if col == "Категория":
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        fig_box = px.box(df_cat, x=col, y=OUTCOME, color=col, title=f"Распределение баллов по '{col}'")
+                        st.plotly_chart(fig_box, use_container_width=True)
+                    with c2:
+                        avg_cat = df_cat.groupby(col)[OUTCOME].mean().round(2).reset_index().sort_values(OUTCOME, ascending=False)
+                        fig_bar_avg = px.bar(avg_cat, x=col, y=OUTCOME, color=col, title=f"Средний балл по '{col}'")
+                        fig_bar_avg.update_xaxes(tickangle=-90)
+                        st.plotly_chart(fig_bar_avg, use_container_width=True)
+                
+                # --- Layout for other parameters ---
+                else:
                     avg_cat = df_cat.groupby(col)[OUTCOME].mean().round(2).reset_index().sort_values(OUTCOME, ascending=False)
                     fig_bar_avg = px.bar(avg_cat, x=col, y=OUTCOME, color=col, title=f"Средний балл по '{col}'")
                     fig_bar_avg.update_xaxes(tickangle=-90)
                     st.plotly_chart(fig_bar_avg, use_container_width=True)
-            
-            # --- Layout for other parameters ---
+
+                # --- Count chart for all parameters ---
+                counts = df_cat[col].value_counts().reset_index()
+                counts.columns = [col, 'count']
+                
+                fig_bar_count = px.bar(counts, x=col, y='count', color=col, title=f"Количество респондентов по '{col}'")
+                fig_bar_count.update_xaxes(tickangle=-90)
+                st.plotly_chart(fig_bar_count, use_container_width=True)
+                
             else:
-                avg_cat = df_cat.groupby(col)[OUTCOME].mean().round(2).reset_index().sort_values(OUTCOME, ascending=False)
-                fig_bar_avg = px.bar(avg_cat, x=col, y=OUTCOME, color=col, title=f"Средний балл по '{col}'")
-                fig_bar_avg.update_xaxes(tickangle=-90)
-                st.plotly_chart(fig_bar_avg, use_container_width=True)
-
-            # --- Count chart for all parameters ---
-            counts = df_cat[col].value_counts().reset_index()
-            counts.columns = [col, 'count']
-            
-            fig_bar_count = px.bar(counts, x=col, y='count', color=col, title=f"Количество респондентов по '{col}'")
-            fig_bar_count.update_xaxes(tickangle=-90)
-            st.plotly_chart(fig_bar_count, use_container_width=True)
-            
-        else:
-            st.warning(f"Столбец '{col}' не найден в данных.")
-
+                st.warning(f"Столбец '{col}' не найден в данных.")
 
