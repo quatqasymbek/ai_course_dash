@@ -33,6 +33,23 @@ st.title("📊 Анализ успеваемости")
 st.markdown("Ниже приведены ключевые статистики по полу, возрасту и областям.")
 
 # =============================================================================
+# OVERALL STATS
+# =============================================================================
+st.header("Общая статистика")
+c1, c2, c3 = st.columns(3)
+
+with c1:
+    st.metric("Всего записей", f"{len(df):,}")
+
+with c2:
+    st.metric("Средний балл", f"{df[OUTCOME].mean():.2f}")
+
+with c3:
+    st.metric("Медианный балл", f"{df[OUTCOME].median():.2f}")
+
+st.markdown("---") # Add a divider
+
+# =============================================================================
 # STATIC SECTION 1 — Пол
 # =============================================================================
 if "Пол" in df.columns:
@@ -104,43 +121,29 @@ if "Возрастная группа" in df.columns:
         )
 
 # =============================================================================
-# STATIC SECTION 3 — Области
+# STATIC SECTION 3 — Области (полный список)
 # =============================================================================
 if "Область" in df.columns:
     st.header("Статистика по областям")
 
-    avg_obl = df.groupby("Область")[OUTCOME].mean().reset_index().sort_values(OUTCOME)
+    # полный список уникальных областей
+    all_regions = pd.DataFrame({"Область": sorted(df["Область"].unique())})
+
+    # средние значения по областям
+    avg_obl = (
+        df.groupby("Область")[OUTCOME]
+        .mean()
+        .round(2)
+        .reset_index()
+    )
+
+    # объединяем, чтобы показать все области (даже без данных)
+    avg_obl_full = all_regions.merge(avg_obl, on="Область", how="left")
 
     st.plotly_chart(
-        px.bar(avg_obl, x=OUTCOME, y="Область", orientation="h",
+        px.bar(avg_obl_full.sort_values(OUTCOME, na_position="last"),
+               x=OUTCOME, y="Область", orientation="h",
                color=OUTCOME, color_continuous_scale="Tealgrn",
                title="Средний итоговый балл по областям"),
         use_container_width=True
     )
-
-    # Optional Map — load only when user expands
-    with st.expander("🗺️ Показать карту Казахстана"):
-        try:
-            with open("kazakhstan_regions.geojson", "r", encoding="utf-8") as f:
-                geojson = json.load(f)
-
-            map_fig = px.choropleth(
-                avg_obl,
-                geojson=geojson,
-                featureidkey="properties.name",
-                locations="Область",
-                color=OUTCOME,
-                color_continuous_scale="Tealgrn",
-                title="Средний итоговый балл по областям (карта)"
-            )
-            map_fig.update_geos(fitbounds="locations", visible=False)
-            st.plotly_chart(map_fig, use_container_width=True)
-
-        except FileNotFoundError:
-            st.warning("Файл kazakhstan_regions.geojson не найден. Поместите его в ту же папку, что и app.py.")
-
-# =============================================================================
-# OPTIONAL — RAW DATA PREVIEW
-# =============================================================================
-with st.expander("Показать данные"):
-    st.dataframe(df, use_container_width=True)
