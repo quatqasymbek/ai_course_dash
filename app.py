@@ -206,7 +206,7 @@ elif page == "Детальный анализ":
                     st.plotly_chart(fig_bar_avg, use_container_width=True)
                 counts = df_cat[col].value_counts().reset_index()
                 counts.columns = [col, 'count']
-                fig_bar_count = px.bar(counts, x=col, y='count', color=col, title=f"Количество респондентов по '{col}'")
+                fig_bar_count = px.bar(counts, x=col, y='count', color=col, title=f"Количество слушателей по '{col}'")
                 fig_bar_count.update_xaxes(tickangle=-90)
                 st.plotly_chart(fig_bar_count, use_container_width=True)
             else:
