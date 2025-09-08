@@ -30,42 +30,47 @@ df[OUTCOME] = pd.to_numeric(df[OUTCOME], errors="coerce")
 # SIDEBAR: NAVIGATION & FILTERS
 # =============================================================================
 st.sidebar.title("Навигация")
-page = st.sidebar.radio("Выберите страницу", ["Основной анализ", "Детальный анализ", "Карта"])
+page = st.sidebar.radio("Выберите страницу", ["Общая статистика", "Дополнительная статистика", "Карта"])
 
 st.sidebar.title("Фильтры")
 df_filtered = df.copy()
 
-# --- Subject Filter ---
-if "Предмет" in df.columns:
-    subjects = sorted(df['Предмет'].dropna().unique())
-    selected_subjects = st.sidebar.multiselect(
-        'Фильтр по предмету:',
-        options=subjects,
-        default=subjects
-    )
-    if not selected_subjects:
-        df_filtered = pd.DataFrame(columns=df.columns)
-    else:
-        df_filtered = df_filtered[df_filtered['Предмет'].isin(selected_subjects)]
+# --- Independent Filters ---
+filter_columns = [
+    'Область',
+    'Тип школы',
+    'Ученая степень',
+    'Категория',
+    'Должность',
+    'Предмет'
+]
 
-# --- Position Filter (cascading) ---
-if "Должность" in df.columns and not df_filtered.empty:
-    positions = sorted(df_filtered['Должность'].dropna().unique())
-    selected_positions = st.sidebar.multiselect(
-        'Фильтр по должности:',
-        options=positions,
-        default=positions
-    )
-    if not selected_positions:
-        df_filtered = pd.DataFrame(columns=df.columns)
-    else:
-        df_filtered = df_filtered[df_filtered['Должность'].isin(selected_positions)]
+for col in filter_columns:
+    if col in df.columns:
+        # Get options from the ORIGINAL dataframe to ensure all options are always available
+        options = sorted(df[col].dropna().unique())
+        
+        selected_options = st.sidebar.multiselect(
+            f'Фильтр по "{col}":',
+            options=options,
+            default=options,
+            key=f'filter_{col}'
+        )
+        
+        # If any options are selected for this filter, apply it
+        if selected_options:
+             df_filtered = df_filtered[df_filtered[col].isin(selected_options)]
+        # If a user deselects all options for a specific filter, the result should be empty
+        else:
+             df_filtered = pd.DataFrame(columns=df.columns)
+             # No need to process further filters if the dataframe is already empty
+             break
 
 # =============================================================================
-# PAGE 1: Основной анализ
+# PAGE 1: Общая статистика
 # =============================================================================
-if page == "Основной анализ":
-    st.title("Основной анализ успеваемости")
+if page == "Общая статистика":
+    st.title("📊 Общая статистика успеваемости")
 
     if df_filtered.empty:
         st.warning("Нет данных, соответствующих выбранным фильтрам.")
@@ -159,28 +164,33 @@ if page == "Основной анализ":
                 axis=1
             )
 
+            # Dynamically set chart height based on the number of regions
+            num_regions = len(all_regions)
+            chart_height = max(400, num_regions * 35) # Minimum height 400px, 35px per region
+
             fig = px.bar(
                 avg_obl_full.sort_values("avg_score", na_position="first"),
                 x="avg_score", y="Область", orientation="h",
                 color="avg_score", color_continuous_scale="Tealgrn",
                 text='bar_text',
                 title="Средний итоговый балл по областям",
-                labels={'avg_score': 'Средний итоговый балл', 'Область': 'Область'}
+                labels={'avg_score': 'Средний итоговый балл', 'Область': 'Область'},
+                height=chart_height
             )
             fig.update_traces(texttemplate='%{text}', textposition='inside')
             fig.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
             st.plotly_chart(fig, use_container_width=True)
 
 # =============================================================================
-# PAGE 2: Детальный анализ
+# PAGE 2: Дополнительная статистика
 # =============================================================================
-elif page == "Детальный анализ":
-    st.title("Детальный анализ по категориям")
+elif page == "Дополнительная статистика":
+    st.title("🔎 Дополнительная статистика по категориям")
     if df_filtered.empty:
         st.warning("Нет данных, соответствующих выбранным фильтрам.")
     else:
         st.markdown("Статистика успеваемости в разрезе категорий, должностей, предметов и типов школ.")
-        analysis_columns = ["Категория", "Должность", "Предмет", "Тип школы"]
+        analysis_columns = ["Категория", "Должность", "Предмет", "Тип школы", "Ученая степень"]
         for col in analysis_columns:
             if col in df_filtered.columns:
                 st.markdown("---")
@@ -216,7 +226,7 @@ elif page == "Детальный анализ":
 # PAGE 3: Карта
 # =============================================================================
 elif page == "Карта":
-    st.title("Карта успеваемости")
+    st.title("🗺️ Карта успеваемости")
 
     if df_filtered.empty:
         st.warning("Нет данных, соответствующих выбранным фильтрам.")
